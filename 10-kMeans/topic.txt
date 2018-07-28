@@ -1,0 +1,310 @@
+1.无监督学习
+从本节开始，我们进入了无监督学习的深深海洋。在监督学习中，即我们讲过的分类和回归，其目标变量的值是已知的。但在无监督学习中，目标变量事先并不存在。
+与之前“对于输入数据X能预测变量Y”不同的是，这里要回答的问题是：“从数据X中能发现什么？”
+2.聚类方法
+我们先来介绍一下无监督学习中的聚类方法，聚类即将相似特征的数据聚集在一起，归到同一个簇中，它有点像全自动分类。聚类方法几乎可以应用于所有的数据对象，簇内的对象越相似，聚类效果越好。
+用一个例子来帮助理解：
+目前很常见的就是各个购物APP会为用户推荐商品，那么这个是怎么实现的呢？
+APP会先收集用户的搜索记录，浏览记录等数据，因为这些数据都与用户的购物意向息息相关。然后，将这些信息输入到某个聚类算法中。接着，对聚类中的每一个簇，精心的选择，为其推荐相应的商品。最后，观察上述做法是否有效。
+聚类和分类最大的不同在于，分类的目标事先已知，而聚类则不一样。聚类产生的结果与分类相同，而只是类别没有预先定义。也因此被称为无监督分类。
+3.K-means聚类算法
+在本节，我们主要介绍K-均值聚类算法，并用该算法对数据进行分组。
+在介绍K-均值聚类算法前，我们先讨论一下簇识别(cluster identification)。簇识别给出聚类结果的含义，即告诉我们每堆相似的数据到底是什么。
+我们已经知道聚类是将相似数归到一个簇中，那么如何度量相似呢？其取决于所选择的相似度计算方法。
+接下来，开始我们对K-means聚类算法的学习！
+
+
+【实验】
+
+1.K-均值聚类算法
+K-均值是发现给定数据的k个簇的算法。而簇个数k是用户给定的，每个簇会通过其质心(centroid)，即簇中所有点的中心来描述。
+我们先来了解一下该算法的工作流程：
+    随机确定k个初始点作为质心
+    当任意一个点的簇分配结果发生改变时：
+        为每个点寻找距其最近的质心
+        将其分配给该质心所对应的簇
+        将每个簇的质心更新为该簇所有点的平均值
+在算法的工作流程中，我们提到了寻找距其最近的质心。那么如何计算“最近”的距离呢？我们可以使用任何可以度量距离的计算方法。但不同的计算方法会影响数据集上K-均值算法的性能。
+本节我们使用的距离函数为欧氏距离。
+
+下面给出该算法的代码实现。
+2.代码实现
+在当前工作目录下新建文件kMeans.py，添加如下代码：
+from numpy import *
+
+"""
+函数说明：加载数据集
+parameters:
+    fileName -文件名
+return:
+    dataMat -数据列表
+"""
+def loadDataSet(fileName):      
+    dataMat = []                
+    fr = open(fileName)
+    for line in fr.readlines():
+        curLine = line.strip().split('\t')
+        fltLine = list(map(float,curLine))  #将数据转换为float型数据
+        dataMat.append(fltLine)
+    return dataMat
+
+"""
+函数说明：计算向量欧氏距离
+parameters:
+    vecA -向量A
+    vecB -向量B
+return：
+    欧氏距离
+"""
+def distEclud(vecA, vecB):
+    return sqrt(sum(power(vecA - vecB, 2)))  #此处也可以使用其他距离计算公式
+
+"""
+函数说明：为给定数据集构建一个包含k个随机质心的集合
+parameters:
+    dataSet -数据集
+    k -质心个数
+return：
+    centroids -质心列表
+"""
+def randCent(dataSet, k):
+    n = shape(dataSet)[1] 
+    centroids = mat(zeros((k,n)))                   #创建存储质心的矩阵，初始化为0
+    for j in range(n):                              #随机质心必须再整个数据集的边界之内
+        minJ = min(dataSet[:,j]) 
+        rangeJ = float(max(dataSet[:,j]) - minJ)    #通过找到数据集每一维的最小和最大值
+        centroids[:,j] = mat(minJ + rangeJ * random.rand(k,1)) #生成0到1之间的随机数，确保质心落在边界之内
+    return centroids
+
+"""
+函数说明：K-均值算法
+parameters:
+    dataSet -数据集
+    k -簇个数
+    distMeas -距离计算函数
+    createCent -创建初始质心函数
+return：
+    centroids -质心列表
+    clusterAssment -簇分配结果矩阵
+"""
+def kMeans(dataSet, k, distMeas=distEclud, createCent=randCent):
+    m = shape(dataSet)[0]                                #确定数据集中数据点的总数
+    clusterAssment = mat(zeros((m,2)))                   #创建矩阵来存储每个点的簇分配结果 
+    #第一列记录簇索引值，第二列存储误差
+    centroids = createCent(dataSet, k)                   #创建初始质心
+    clusterChanged = True                                #标志变量，若为True，则继续迭代
+    while clusterChanged:
+        clusterChanged = False 
+        for i in range(m):                               #遍历所有数据找到距离每个点最近的质心
+            minDist = inf; minIndex = -1    
+            for j in range(k):                           #遍历所有质心
+                distJI = distMeas(centroids[j,:],dataSet[i,:])              #计算质心与数据点之间的距离
+                if distJI < minDist:    
+                    minDist = distJI; minIndex = j
+            if clusterAssment[i,0] != minIndex: clusterChanged = True
+            clusterAssment[i,:] = minIndex,minDist**2    #将数据点分配到距其最近的簇，并保存距离平方和
+        print(centroids)    
+        for cent in range(k):                            #对每一个簇
+            ptsInClust = dataSet[nonzero(clusterAssment[:,0].A==cent)[0]]   #得到该簇中所有点的值
+            centroids[cent,:] = mean(ptsInClust, axis=0) #计算所有点的均值并更新为质心
+    return centroids, clusterAssment 
+
+"""
+函数说明：绘图
+parameters：
+    centList -质心列表
+    myNewAssments -簇列表
+    dataMat -数据集
+return:
+    null
+"""
+def drawDataSet(dataMat,centList,myNewAssments):
+    fig = plt.figure()      
+    rect=[0.1,0.1,0.8,0.8]                                             #绘制矩形
+    scatterMarkers=['s', 'o', '^', '8', 'p', 'd', 'v', 'h', '>', '<']  #构建标记形状的列表用于绘制散点图
+    ax1=fig.add_axes(rect, label='ax1', frameon=False)
+    for i in range(2):                                                 #遍历每个簇
+        ptsInCurrCluster = dataMat[nonzero(myNewAssments[:,0].A==i)[0],:]
+        markerStyle = scatterMarkers[i % len(scatterMarkers)]          #使用索引来选择标记形状
+        ax1.scatter(ptsInCurrCluster[:,0].flatten().A[0], ptsInCurrCluster[:,1].flatten().A[0], marker=markerStyle, s=90)
+    ax1.scatter(centList[:,0].flatten().A[0], centList[:,1].flatten().A[0], marker='+', s=300)    #使用"+"来标记质心
+    plt.show()
+
+if __name__ =='__main__':
+    dataMat = mat(loadDataSet('testSet.txt'))
+    centList,myNewAssments = kMeans(dataMat,4)
+    print(centList)
+    drawDataSet(dataMat,centList,myNewAssments)
+
+我们来看下该程序的运行效果，保存kMeans.py文件后，在当前工作目录下，python kMeans.py运行：
+
+可以看到，上面的结果给出了4个质心，且经过3次迭代之后K-均值算法收敛，并在图中可以看到我们的簇分布。
+3.使用后处理来提高聚类性能
+到目前为止，我们看到K-均值聚类算法进行的很顺利，但还有些事情我们需要注意一下。
+在最开始的时候，我们随机指定了k个质心，这导致数据最开始就被分成了k个簇，不断的更新每个簇，最终只能收敛到簇内的局部最小值，而非全局最小值，即最好结果。
+前面提到过用户可以指定簇的个数k值，那么问题来了。用户如何才能知道，选择的k值是否合适？生成的簇的结果是否好呢？
+即我们需要一个指标来度量聚类质量。在包含簇分配结果的矩阵中保存着每个点的误差(该点到质心的距离平方值)。
+一种用于度量聚类效果的指标是SSE（sum of squared error,误差平方和），sse值越小表示数据点越接近它的质心，聚类效果越好。因为对误差取了平方，因此距离质心较远的点所占的比重会更大。
+一种肯定可以降低sse值的方法是：增加簇的个数，但这并不会对数据分组有什么好的效果。聚类的目标是保持簇个数不变的情况下提高簇的质量。
+还有一种方法是对生成的簇进行后处理。在保持簇总数不变的情况下，对某两个簇进行合并。具体做法是合并最近的质心，或者合并两个使得sse增幅最小的质心。
+
+接下来，我们将讨论利用上述簇划分技术得到更好的聚类结果的方法。快进入下一节吧。
+
+【实验】
+1.二分k-均值算法
+为克服K-均值算法收敛于局部最小值的问题，本节我们介绍一种二分K-均值(bisecting K-means)的算法。
+该算法首先将所有点看作一个簇，然后将该簇一分为二。之后选择其中一个簇继续进行划分，选择哪一个簇则取决于对其划分是否可以最大程度降低SSE的值。
+可以看出该算法是基于SSE的划分过程。最终划分的簇个数是用户指定的簇数目。
+2.代码实现
+话不多说，我们按照该算法的工作流程给出以下代码。
+打开文件kMeans.py，添加如下代码：
+"""
+函数说明：二分K-均值聚类算法
+parameters:
+    dataSet -数据集
+    k -期望簇个数
+    distMeas -距离计算函数
+return：
+    mat(centList) -质心列表矩阵
+    clusterAssment -聚类结果
+"""
+def biKmeans(dataSet, k, distMeas=distEclud):
+    m = shape(dataSet)[0]                                   #得到数据集中样本点的个数
+    clusterAssment = mat(zeros((m,2)))                      #创建存储每个样本点的簇信息
+    centroid0 = mean(dataSet, axis=0).tolist()[0]           #最初将所有的数据看作一个簇，计算其均值
+    centList =[centroid0]                                   #创建质心列表
+    for j in range(m):                                      #遍历所有数据
+        clusterAssment[j,1] = distMeas(mat(centroid0), dataSet[j,:])**2  #计算每个样本点与质点的距离
+    while (len(centList) < k):                              #判断是否已经划分到用户指定的簇个数
+        lowestSSE = inf                                     #将最小SSE设为无穷大
+        for i in range(len(centList)):                      #遍历所有簇
+            ptsInCurrCluster = dataSet[nonzero(clusterAssment[:,0].A==i)[0],:]      #得到该簇所有数据的值
+            centroidMat, splitClustAss = kMeans(ptsInCurrCluster, 2, distMeas)      #在给定的簇上面进行K-均值聚类（k=2）
+            sseSplit = sum(splitClustAss[:,1])              #计算被划分的数据的误差
+            sseNotSplit = sum(clusterAssment[nonzero(clusterAssment[:,0].A!=i)[0],1]) #计算剩余数据的误差
+            print ("sseSplit, and notSplit: ",sseSplit,sseNotSplit)
+            if (sseSplit + sseNotSplit) < lowestSSE:        #如果该划分的误差平方和（SSE）值最小
+                bestCentToSplit = i
+                bestNewCents = centroidMat
+                bestClustAss = splitClustAss.copy()
+                lowestSSE = sseSplit + sseNotSplit          #将本次划分结果保存
+        bestClustAss[nonzero(bestClustAss[:,0].A == 1)[0],0] = len(centList)        #由于使用二分均值聚类，会得到两个编号分别为0和1的结果簇
+        bestClustAss[nonzero(bestClustAss[:,0].A == 0)[0],0] = bestCentToSplit      #需要将这些簇编号更新为新加簇的编号
+        print ('the bestCentToSplit is: ',bestCentToSplit)
+        print ('the len of bestClustAss is: ', len(bestClustAss))
+        centList[bestCentToSplit] = bestNewCents[0,:].tolist()[0]                   #更新质心列表
+        centList.append(bestNewCents[1,:].tolist()[0])                              #将新的质心添加至列表
+        clusterAssment[nonzero(clusterAssment[:,0].A == bestCentToSplit)[0],:]= bestClustAss    #更新新的簇分配结果
+    return mat(centList), clusterAssment
+
+并修改main函数为：
+if __name__ =='__main__':
+    dataMat = mat(loadDataSet('testSet2.txt'))
+    centList,myNewAssments =kMeans(dataMat,3)
+    print(centList)
+    drawDataSet(dataMat,centList,myNewAssments，3)
+
+现在我们运行下程序，看到聚类会收敛到全局最小值。
+实验总结：
+K-均值聚类
+优点：容易实现
+缺点：可能收敛到局部最小值，在大规模数据集上收敛较慢
+使用数据类型：数值型数据
+
+【实验】
+本节，我们将上节将的二分K-均值算法应用于一些真实的数据集上。
+
+给你一个文件，该文件存有70个位置的经纬度，如何能最省事的一次走完这70个地方。我们可以设计一个将这些地方进行聚类的最佳策略，这样就可以安排交通工具抵达这些簇的质心，然后步行到每个簇内地址。
+最核心的问题还是对这些数据进行聚类分组。
+由于我们的数据是这些位置的经纬度，所有我们计算数据点与簇质心的距离时需要使用球面余弦定理来计算。
+
+而代码的实现中，除了我们需要添加一个距离计算函数，其余的都可以重用上节代码。
+这里我们新建了一个clusterClubs函数，用来将数据读取，聚类算法和可视化集成到该函数中。
+打开kMeans.py文件，添加如下代码：
+"""
+函数说明：地球表面两点之间的距离
+parameters:
+    vecA -向量A
+    vecB -向量B
+return:
+    两个向量之间的球面距离
+"""   
+def distSLC(vecA, vecB):
+    a = sin(vecA[0,1]*pi/180) * sin(vecB[0,1]*pi/180)   #使用球面余弦定理计算两点间的距离
+    b = cos(vecA[0,1]*pi/180) * cos(vecB[0,1]*pi/180) * cos(pi * (vecB[0,0]-vecA[0,0]) /180)
+    return arccos(a + b)*6371.0 
+
+"""
+函数说明：集成文本解析，聚类和画图
+parameters:
+    numClust -希望得到的簇个数
+return:
+    null
+"""
+def clusterClubs(numClust=5):
+    datList = []
+    for line in open('places.txt').readlines():                     #类似于loadDataSet函数
+        lineArr = line.split('\t')
+        datList.append([float(lineArr[4]), float(lineArr[3])])      #文件第4列和第5列分别对应经度和维度
+    datMat = mat(datList)
+    myCentroids, clustAssing = biKmeans(datMat, numClust, distMeas=distSLC)     #在数据集上进行二分均值聚类算法
+    fig = plt.figure()      
+    rect=[0.1,0.1,0.8,0.8]                                          #绘制矩形
+    scatterMarkers=['s', 'o', '^', '8', 'p', 'd', 'v', 'h', '>', '<']  #构建标记形状的列表用于绘制散点图
+    axprops = dict(xticks=[], yticks=[])    
+    ax0=fig.add_axes(rect, label='ax0', **axprops)
+    imgP = plt.imread('Portland.png')
+    ax0.imshow(imgP)
+    ax1=fig.add_axes(rect, label='ax1', frameon=False)
+    for i in range(numClust):                                       #遍历每个簇
+        ptsInCurrCluster = datMat[nonzero(clustAssing[:,0].A==i)[0],:]
+        markerStyle = scatterMarkers[i % len(scatterMarkers)]       #使用索引来选择标记形状
+        ax1.scatter(ptsInCurrCluster[:,0].flatten().A[0], ptsInCurrCluster[:,1].flatten().A[0], marker=markerStyle, s=90)
+    ax1.scatter(myCentroids[:,0].flatten().A[0], myCentroids[:,1].flatten().A[0], marker='+', s=300)    #使用"+"来标记质心
+    plt.show()
+
+并修改main函数为：
+if __name__ =='__main__':
+    #对地图上的点进行聚类
+    clusterClubs()
+
+看一下实际运行效果：
+我们可以尝试输入不同簇数目得到的程序运行结果，思考一下，簇的个数为多少会更好呢？
+
+到此，我们学习了无监督学习中的聚类方法，k-均值聚类算法以及二分K-均值算法和其在真实数据上的应用。但这些算法并非仅有的聚类算法，接下来继续介绍其他的无监督学习算法。
+
+【sklearn】
+sklearn.cluster库提供很多了聚类方法，本节我们介绍KMeans聚类算法。
+主要参数说明：
+    n_clusters:整型，可选，默认为8。最终的簇个数也就是质心个数。
+    init:初始化质心的方法。可选{'k-means++','random'or ndarray}，默认为k-means++。
+        k-means++:用使算法可以快速收敛的方法为k均值聚类选择初始质心
+        random:随机选择
+        ndarray：用户设定初始质心列表，形状为(n_clusters,n_features)
+    tol:浮点型，默认值为1e-4,即声明收敛时的相对误差
+返回值：
+    cluster_centers_:数组型数据，形状为(n_clusters,n_features)质心列表。
+    labels_:每个点的标签
+    inertia_:浮点型，每个点到其质心的距离平方和
+
+函数:
+fit(X[,y])  计算k-means聚类
+fit_predict(X[,y])  计算质心并预测每个数据点的簇标签
+get_params([deep])  得到评价器的参数
+predict(X)  为X数据集中的每个数据预测簇标签
+score(X[,y])    计算该聚类方法的正确率分数
+
+接下来，我们使用sklearn库实现以下kMeans算法,并与我们上一节的k-均值聚类算法相比较。
+在当前工作目录下，新建文件sklearnKmeans.py文件，添加如下代码：
+from sklearn.cluster import KMeans
+from numpy import *
+import kMeans
+
+X=kMeans.loadDataSet('testSet.txt')
+kmeans = KMeans(n_clusters=4,random_state=0).fit(X)
+print("sklearn实现质心列表为：",kmeans.cluster_centers_)
+centroids, _ =kMeans.kMeans(mat(X),4)
+print("python实现质心列表为：",centroids)
+
+运行后，结果为：
+成功运行。
