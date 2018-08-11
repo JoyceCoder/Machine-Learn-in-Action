@@ -1,0 +1,349 @@
+【原理】
+1.SVD是什么？
+奇异值分解(singular value decomposition,SVD),是一种提取信息的方法。比如我们可以对记录用户关于餐馆观点的数据进行处理，并且从中提取出其背后的因素。这些因素可能会与餐馆的类别、烹饪时所用的某个特定配料，或其他任意对象一致。然后，我们就可以利用这些因素来估计人们对没有去过的餐馆的看法。
+提取这些信息的方法就是奇异值分解法。
+2.SVD能干什么？
+奇异值分解能够简约数据，去除噪声和冗余数据。其实它说白了也是一种降维方法，将数据映射到低维空间。我们之前学到的PCA算法也是数据降维的一种方法，那么二者有什么区别和联系呢？二者都是挖掘数据中的重要特征。PCA是基于SVD实现的，SVD比PCA更为稳定，SVD还可以应用到推荐系统上。
+SVD的用处有很多，比如：LSA（隐性语义分析）、推荐系统、特征压缩（或称数据降维）。SVD可以理解为：将一个比较复杂的矩阵用更小更简单的3个子矩阵的相乘来表示，这3个小矩阵描述了大矩阵重要的特性。
+3.奇异值分解
+下面我们来回顾一下我们学过的矩阵知识，奇异值分解。对于一个m*n的矩阵，我们怎样才能描述这样普通的矩阵的重要特征呢？奇异值分解可以解决这个难题，它是一个能适用于任意的矩阵的一种分解的方法。奇异值分解将矩阵分解为3个子矩阵相乘的形式：
+    A=U Σ V.T
+如果原始矩阵Data是m行n列，那么U、Σ和VT就分别是m行m列、m行n列和n行n列。上述分解中会构建出一个矩阵Σ，该矩阵只有对角元素，其他元素均为0。另一个惯例就是，Σ的对角元素是从大到小排列的。这些对角元素称为奇异值（Singular Value），它们对应了原始数据集矩阵Data的奇异值。回想上一章的PCA，我们得到的是矩阵的特征值，它们告诉我们数据集中的重要特征。Σ中的奇异值也是如此。奇异值和特征值是有关系的。这里的奇异值就是矩阵Data * DataT特征值的平方根。
+前面提到过，矩阵Σ只有从大到小排列的对角元素。在科学和工程中，一直存在这样一个普遍事实：在某个奇异值的数目（r个）之后，其他的奇异值都置为0。这就意味着数据集中仅有r个重要特征，而其余特征则都是噪声或冗余特征。
+4.一个用例理解SVD
+下图给出的矩阵是由餐馆的菜和品菜师对这些菜的意见构成的。品菜师可以采用1到5之间
+的任意一个整数来对菜评级。如果品菜师没有尝过某道菜，则评级为0。
+拿到这个问题，最直观的一个思路流程就是：计算菜系的相似度->结合评分->对没吃过的菜系计算预测评分->预测评分排序->推荐前x个菜。
+SVD做的改进就是将矩阵分解，从数据中构建出一个主题空间，再在该主题空间下计算相似度，提高了推荐效果。
+在上例中，对数据矩阵进行SVD处理，会得到两个奇异值。因此，有两个概念或主题与此数据集相关联，比如我们基于每个组的共同特征来命名，可能是美式BBQ和日式食品这二维。
+如何才能将原始数据变换到上述新空间中呢？根据SVD分解得到的VT矩阵会将用户映射到BBQ/日式食品空间去。类似地，U矩阵会将餐馆的菜映射到BBQ/日式食品空间去。具体的推荐系统我们会在后面讲到。
+目前我们只需要了解SVD在推荐系统中的作用就是对矩阵进行分解，将原始数据重构为只包含重要特征的数据矩阵。
+【实验】
+上节我们介绍了SVD是多么的厉害，那么该如何实现它呢？
+SVD的实现设计很多线性代数知识，我们不需要关注具体的奇异值分解细节，python的Numpy库为我们提供了linalg的线性代数工具。可以直接对矩阵进行奇异值分解。
+我们先来了解一下如何利用该工具实现矩阵的SVD处理：
+在当前目录下，输入python回车，进入python命令行：
+依此输入：
+>>> from numpy import *
+>>> u,sigma,vt = linalg.svd([1,1],[7,7])
+接下来，我们可以逐个查看分解的矩阵
+>>> u
+
+>>> sigma
+矩阵sigma是以行向量array([10.,0.])返回，这是因为矩阵sigma除对角元素其他均为0，numpy仅返回对角元素，但一旦看到sigma就要知道它是一个矩阵，而不是array。
+>>> vt
+
+>>> exit()
+退出python命令行。
+接下来，我们在更大的数据集上进行分解：
+在当前目录下，新建文件svd.py，添加如下代码：
+from numpy import *
+from numpy import linalg as la
+
+def loadExData():
+    return[[1,1,1,0,0],
+           [2,2,2,0,0],
+           [1,1,1,0,0],
+           [5,5,5,0,0],
+           [1,1,0,2,2],
+           [0,0,0,3,3],
+           [0,0,0,1,1]]
+
+if __name__ == '__main__':
+ 
+    #测试svd奇异值分解
+    data=loadExData()
+    u,sigma,vt=la.svd(data)
+    print("奇异值矩阵：\n",sigma)
+    sig3=mat([[sigma[0],0,0],[0,sigma[1],0],[0,0,sigma[2]]])
+    print("重构矩阵:\n",u[:,:3]*sig3*vt[:3,:])
+
+保存后运行，我们可以看到：
+
+我们来逐个分析，sigma矩阵中，可以明显看到，前三个奇异值比其他的值大了很多，我们只保留了前三个值。那为什么对于奇异值的数目只保留三个呢？其中一个典型的做法是保留矩阵中90%的能量信息。另一种方法是，当矩阵上有上万的奇异值时，那么就保留前面的2000或3000个。
+
+在这里，我们保留了前三个奇异值，那么我们的原始数据集就可以用如下结果来近似：
+
+根据这个方案来重构原始数据。也就是代码中的：
+u[:,:3]*sig3*vt[:3,:]
+由于Sig3仅为3×3的矩阵，因而我们只需使用矩阵U的前三列和VT的前三行。
+现在我们已经可以使用SVD对一个大矩阵进行处理。
+
+[原理]
+目前，我们接触到的比如网易云音乐的个性化推荐歌曲，淘宝的推荐物品，亚马逊的推荐图书等等。推荐引擎已经是一个很普遍的事物了。那么如何实现推荐功能呢？本节我们介绍一种协同过滤(collaborative filtering)的方法。协同过滤是通过将用户和其他用户的数据进行对比来实现推荐的。
+协同过滤算法通过对用户历史行为数据的挖掘发现用户的偏好，基于不同的偏好对用户进行群组划分并推荐品味相似的商品。协同过滤推荐算法分为两类，分别是基于用户的协同过滤算法(user-based collaboratIve filtering)，和基于物品的协同过滤算法(item-based collaborative filtering)。简单的说就是：人以类聚，物以群分。
+协同过滤与领域无关，它不需要知道现在对什么评分，谁在评分，评分是多少。而是基于各个类别之间的相似度来进行推荐。
+这里涉及到了相似度计算的问题。推荐引擎如何决定将哪个物品推荐给用户，就是取决于计算出的相似度排序。
+
+1.相似度计算
+我们希望找到一种计算物品之间的相似度的定量的方法。利用用户对物品的评分来计算相似度，这就是协同过滤中使用的方法。
+下图中，给出了由一些用户及其对部分菜肴的评级信息所组成的矩阵。
+下面，我们基于所给数据矩阵，介绍三种相似度计算方法：
+1.欧式距离
+欧几里德距离评价是一个较为简单的用户关系评价方法。原理是通过计算两个用户在散点图中的距离来判断不同的用户是否有相同的偏好。
+我们计算一下手撕猪肉和烤牛肉之间的相似度。一开始我们使用欧氏距离来计算。手撕猪肉和烤牛肉的欧氏距离为：
+而手撕猪肉和鳗鱼饭的欧氏距离为：
+在该数据中，由于手撕猪肉和烤牛肉的距离小于手撕猪肉和鳗鱼饭的距离，因此手撕猪肉与烤牛肉比与鳗鱼饭更为相似。我们希望，相似度值在0到1之间变化，并且物品对越相似，它们的相似度值也就越大。我们可以用“相似度=1/(1+距离)”这样的算式来计算相似度。当距离为0时，相似度为1.0。如果距离真的非常大时，相似度也就趋近于0。
+2.皮尔逊相关系数(pearson correlation)
+它度量两个向量之间的相似度。该方法相对于欧氏距离的一个优势在于，它对用户评级的量级并不敏感。比如某个狂躁者对所有物品的评分都是5分，而另一个忧郁者对所有物品的评分都是1分，皮尔逊相关系数会认为这两个向量是相等的。在NumPy中，皮尔逊相关系数的计算是由函数corrcoef()进行的，后面我们很快就会用到它了。皮尔逊相关系数的取值范围从-1到+1，我们通过0.5 + 0.5*corrcoef()这个函数计算，并且把其取值范围归一化到0到1之间。
+3.余弦相似度(cosine similarity)
+计算的是两个向量夹角的
+余弦值。如果夹角为90度，则相似度为0；如果两个向量的方向相同，则相似度为1.0。同皮尔逊相关系数一样，余弦相似度的取值范围也在1到+1之间，因此我们也将它归一化到0到1之间。计算余弦相似度值，我们采用的两个向量A和B夹角的余弦相似度的定义如下：
+
+接下来我们将上述各种相似度的计算方法写成Python中的函数。打开svd.py文件并加入下列代码：
+"""
+函数说明：相似度计算函数(欧氏距离)
+parameters：
+    inA -列向量A
+    inB -列向量B
+return：
+    两个向量的相似度
+"""
+def ecludSim(inA, inB):
+    return 1.0/(1.0+la.norm(inA-inB))
+
+"""
+函数说明：相似度计算函数(皮尔逊相关系数)
+parameters：
+    inA -列向量A
+    inB -列向量B
+return：
+    两个向量的相似度
+"""
+def pearsSim(inA, inB):
+    if len(inA)<3: return 1.0   #是否存在三个或更多的点。两个向量是完全相关的，返回1
+    #print(corrcoef(inA,inB,rowvar=0))
+    return 0.5+0.5*corrcoef(inA,inB,rowvar=0)[0][1]     #将数据归一化到0到1之间
+
+"""
+函数说明：相似度计算函数(余弦相似度)
+parameters：
+    inA -列向量A
+    inB -列向量B
+return：
+    两个向量的相似度
+"""
+def cosSim(inA, inB):
+    num = float(inA.T*inB)  #计算分子
+    denom = la.norm(inA)*la.norm(inB)   #计算分母
+    return 0.5+0.5*(num/denom)  #归一化
+并修改main函数为：
+if __name__ == '__main__':
+    #测试相似度计算
+    myMat = mat(loadExData1())
+    print("欧氏距离：")
+    print(ecludSim(myMat[:,0],myMat[:,4]))
+    print(ecludSim(myMat[:,0],myMat[:,0]))
+    print('皮尔逊相关系数：')
+    print(pearsSim(myMat[:,0],myMat[:,4]))
+    print(pearsSim(myMat[:,0],myMat[:,0]))
+    print('余弦相似度：')
+    print(cosSim(myMat[:,0],myMat[:,4]))
+    print(cosSim(myMat[:,0],myMat[:,0]))
+运行后，我们可以看到对于物品0和物品4的相似度计算，以及物品0与自身的相似度计算，肯定是1啦！
+要注意的是，上述计算中都是假设数据采用了列向量方式来进行计算的。这里的列向量也暗示了我们将利用基于物品的相似度计算方法。
+2.基于物品的相似度还是用户的相似度
+在上述计算中，我们是基于物品(item-based)的相似度。另一种计算方法为基于用户(user-based)的相似度，用来计算用户距离。在图中矩阵也可以看出，行为用户，列为物品。到底使用哪一种相似度呢？这取决于用户或物品的数目。基于物品相似度计算的时间会随物品数量的增加而增加，基于用户的相似度计算的时间则会随用户数量的增加而增加。如果我们有一个商店，那么最多会有几千件商品。如果用户的数目很多，那么我们可能倾向于使用基于物品相似度的计算方法。对于大部分产品导向的推荐引擎而言，用户的数量往大于物品的数量，即购买商品的用户数会多于出售的商品种类。
+3.推荐引擎的评价
+如何对推荐引擎进行评价呢？此时，我们既没有预测的目标值，也没有用户来调查他们对预测的满意程度。这里我们就可以采用前面多次使用的交叉测试的方法。通常用于推荐引擎评价的指标是称为最小均方根误差（Root Mean Squared Error，RMSE）的指标，它首先计算均方误差的平均值然后取其平方根。
+【实验】
+本节实验我们来实现一个基于SVD的菜肴推荐引擎。该引擎关注的是餐馆食物的推荐。由于协同推荐是基于用户历史数据来挖掘的，那么我们需要先寻找用户没有尝过的菜肴，通过尝过的菜肴评分来预测这道菜肴的可能得分。接下来，通过SVD来减少特征空间并提高推荐的效果。
+我们需要明确的是，推荐系统的工作过程是：
+给定一个用户，系统会为此用户返回N个最好的推荐菜。为了实现这一点，则需要我们做到：
+(1) 寻找用户没有评级的菜肴，即在用户－物品矩阵中的0值；
+(2) 在用户没有评级的所有物品中，对每个物品预计一个可能的评级分数。这就是说，我们
+认为用户可能会对物品的打分（这就是相似度计算的初衷）；
+(3) 对这些物品的评分从高到低进行排序，返回前N个物品。
+1.推荐未尝过的菜
+根据推荐系统的工作过程，我们需要定义功能函数来实现推荐和估计评分。由于对物品的估计评分是一个重复操作，我们单独用一个函数来实现。
+standEst -计算给定相似度计算方法的条件下，用户对物品的估计评分值。
+recommend -寻找未评价的物品，对物品评分进行排序
+打开svd.py文件，添加如下代码：
+"""
+函数说明：给定相似度计算方式，评估物品得分
+parameters:
+    dataMat -数据矩阵
+    user -用户编号
+    simMeas -相似度计算方法引用
+    item -物品编号
+return:
+    用户对该物品的预估评分
+"""
+def standEst(dataMat, user, simMeas, item):
+    n = shape(dataMat)[1]   #行为用户，列为物品。得到物品个数
+    simTotal = 0.0;ratSimTotal = 0.0
+    for j in range(n):
+        userRating = dataMat[user,j]    #记录用户对物品j的评分
+        if userRating == 0: continue    #用户未对该物品评分，继续
+        overLap = nonzero(logical_and(dataMat[:,item].A>0,dataMat[:,j].A>0))[0] 
+        #print(dataMat[:,item].A)
+        #print(logical_and(dataMat[:,item].A>0,dataMat[:,j].A>0))
+        #print(nonzero(logical_and(dataMat[:,item].A>0,dataMat[:,j].A>0)))
+        if len(overLap) == 0: similarity = 0    #两个物品没有重合元素，相似度为0
+        else:
+            similarity = simMeas(dataMat[overLap,item],dataMat[overLap,j])  #对重合元素进行相似度计算
+        print("物品%d和物品%d的相似度为%f" %(item,j,similarity))
+        simTotal += similarity  #评分总和
+        ratSimTotal +=similarity*userRating #相似度和当前用户评分的乘积
+    if simTotal == 0 : return 0.0   
+    else: return ratSimTotal/simTotal   #对数据归一，使得评分值在0-5之间
+
+
+"""
+函数说明：推荐函数
+parameters:
+    dataMat -数据矩阵
+    user -用户编号
+    N -产生推荐结果的个数
+    simMeas -相似度计算方法
+    estMethod -评估函数
+return:
+    返回N个推荐结果
+"""
+def recommend(dataMat, user, N=3, simMeas=cosSim, estMethod = standEst):
+    unratedItems = nonzero(dataMat[user,:].A==0)[1]     #找到该用户还未评分的物品
+    if len(unratedItems) == 0: return "你吃过的东西太多啦"
+    itemScores = []
+    for item in unratedItems:   
+        estimatedScore = estMethod(dataMat,user,simMeas,item)   #计算该物品的预估得分
+        itemScores.append((item,estimatedScore))    #存储到list
+    return sorted(itemScores,key=lambda jj: jj[1],reverse=True)[:N] #将得分排序，返回前N个
+修改我们的main函数为：
+if __name__ == '__main__':
+    #测试推荐
+    myMat[0,1]=myMat[0,0]=myMat[1,0]=myMat[2,0]=4
+    myMat[3,3]=2
+    print("修改后的矩阵：\n",myMat)
+    print("余弦计算相似度推荐：\n",recommend(myMat,2))
+    print("欧式相似度推荐：\n",recommend(myMat,2,simMeas=ecludSim))
+    print("皮尔逊计算相似度推荐：\n",recommend(myMat,2,simMeas=pearsSim))
+接下来看看它的实际运行效果。
+表明了用户2（由于我们从0开始计数，因此这对应了矩阵的第3行）对物品2的预测评分值为2.5，对物品1的预测评分值为2.05。
+这个例子给出了如何利用基于物品相似度和多个相似度计算方法来进行推荐的过程，下面我们介绍如何将SVD应用于推荐。
+2.使用SVD改进推荐效果
+实际的数据集会比我们用于展示recommend()函数功能的myMat矩阵稀疏得多。我们将使用下图矩阵中的数据来进行推荐。
+下面我们来计算该矩阵的SVD来了解到底需要多少维特征(多少个奇异值)。
+打开svd.py文件，添加如下代码：
+def loadExData2():
+    return[[2, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0],
+           [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 5],
+           [0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 0],
+           [3, 3, 4, 0, 3, 0, 0, 2, 2, 0, 0],
+           [5, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0],
+           [0, 0, 0, 0, 0, 0, 5, 0, 0, 5, 0],
+           [4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5],
+           [0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 4],
+           [0, 0, 0, 0, 0, 0, 5, 0, 0, 5, 0],
+           [0, 0, 0, 3, 0, 0, 0, 0, 4, 5, 0],
+           [1, 1, 2, 1, 1, 2, 1, 0, 4, 5, 0]]
+修改main函数为：
+if __name__ == '__main__':
+    u,sigma,vt = la.svd(mat(loadExData2()))
+    print("奇异值矩阵为:\n",sigma)
+    #计算总能量的90%
+    sig2 = sigma**2
+    parSig = sum(sig2)*0.9
+    print("90%的能量为：\n",parSig)
+    energy = 0.0
+    while(energy < parSig):
+        i = int(input("请输入所需奇异值个数："))
+        energy = sum(sig2[:i])
+        print("%d个元素所包含的能量为%f"%(i,energy))
+运行后我们可以看到，前4个元素所包含的能量已经足以到总能量的90%。也就是说我们可以将一个11维的矩阵转换成一个4维的矩阵。
+这里我们给出一个基于SVD的评分估计函数，与之前的standEst不同的是，这里对数据集进行了SVD分解。
+打开svd.py文件，添加如下代码：
+"""
+函数说明：基于SVD的评分估计
+parameters:
+    dataMat -数据矩阵
+    user -用户编号
+    simMeas -相似度计算方法
+    item -物品编号
+return:
+    物品的估计评分
+"""
+def svdEst(dataMat, user, simMeas, item):
+    n = shape(dataMat)[1]   #获取物品个数
+    simTotal = 0.0; ratSimTotal = 0.0
+    u,sigma,vt = la.svd(dataMat)    #对数据矩阵奇异值分解
+    sig4 = mat(eye(4)*sigma[:4])    #只利用包含了90%能量值的奇异值      
+    xformedItems = dataMat.T * u[:,:4] *sig4.I  #利用u矩阵将物品转换到低维空间
+    for j in range(n):
+        userRating = dataMat[user,j]    #得到用户对该物品的评分
+        if userRating == 0 or j==item:continue   #如果评分为0或者物品与比较物品相同，则跳过
+        similarity = simMeas(xformedItems[item,:].T,xformedItems[j,:].T)    #转换为列向量，并计算相似度
+        print("物品%d和物品%d的相似度为%f" %(item,j,similarity))
+        simTotal += similarity  
+        ratSimTotal += similarity*userRating  
+    if simTotal == 0: return 0
+    else: return ratSimTotal/simTotal   
+修改我们的main函数为：
+if __name__ == '__main__':
+    #测试svd推荐
+    myMat1 = mat(loadExData2())
+    print("使用svdEst,cosSim的推荐结果：\n",recommend(myMat1,1,estMethod=svdEst))
+    print("使用svdEst,pearsSim的推荐结果：\n",recommend(myMat1,1,estMethod=svdEst,simMeas=pearsSim))
+    print("使用standEst,pearsSim的推荐结果：\n",recommend(myMat1,1,simMeas=pearsSim))
+
+接下来看看程序的执行效果。
+我们可以看到不同的估计评分函数下，不同的相似度计算下的推荐结果。
+但在大型推荐系统中，SVD分解在效率上会降低程序的速度。
+【实验】
+本节我们将了解如何将SVD应用于图像压缩。
+在文件库中，0_5.txt文件中包含了一张手写的数字图像，原始图像大小是32*32=1024像素，也就是我们目前需要使用1024个存储空间。
+我们来使用SVD来对图像进行降维，看是否能够节省空间呢？
+打开svd.py文件，添加如下代码：
+
+"""
+函数说明：打印矩阵
+parameters:
+    inMat -数据矩阵
+    thresh -阈值界定深色和浅色
+return:
+    None
+"""
+def printMat(inMat, thresh=0.8):
+    for i in range(32): #图片的像素为32*32
+        for j in range(32):
+            if float(inMat[i,j]) > thresh:  #如果大于阈值，则输出1
+                print(1,end='') #python3,输出不换行
+            else:
+                print(0,end='')
+        print('')
+
+"""
+函数说明：图像压缩
+parameters:
+    numSV -给定的奇异值数目
+    thresh -阈值
+return:
+    None
+"""
+def imgCompress(numSV=3,thresh=0.8):
+    myl = []
+    for line in open('0_5.txt').readlines():
+        newRow = []
+        for i in range(32):
+            newRow.append(int(line[i])) #从文件中以数值方式读入字符
+        myl.append(newRow)
+    myMat = mat(myl)
+    print("**********初始矩阵**********")
+    printMat(myMat, thresh)
+    u,sigma,vt = la.svd(myMat)
+    sigRecon = mat(zeros((numSV,numSV)))    #构建对角线上为sigma的numSV*numSV的矩阵
+    for k in range(numSV):
+        sigRecon[k,k]=sigma[k]
+    reconMat = u[:,:numSV] * sigRecon *vt[:numSV,:] #重构矩阵
+    print("**********使用%d个奇异值的重构矩阵**********" %numSV)
+    printMat(reconMat,thresh)
+
+其中，图像压缩函数imgCompress，它允许基于任意给定的奇异值数目来重构图像。在重构原始数据时，通过将奇异值填充到新建的零矩阵的对角线上，并截断U和VT矩阵，来得到重构矩阵。
+修改我们的main函数为：
+if __name__ == '__main__':
+    #测试图像压缩
+    imgCompress(2)
+
+我们使用两个奇异值来对图像进行重构。
+运行后，可以看到，我们仅使用2个奇异值就可以相当精确的对图像实现重构。并且U矩阵和VT矩阵的大小都是32*2，有两个奇异值，总数字的数目就是：32*2*2+2=130。和原数目1024相比，足足获得了10倍的压缩比。
+
+【原理】

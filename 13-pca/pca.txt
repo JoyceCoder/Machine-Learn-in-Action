@@ -1,0 +1,113 @@
+【原理】
+在本节，我们将接触对真实数据的处理问题。
+在许多领域的研究与应用中，往往需要对反映事物的多个变量进行大量的观测，收集大量数据以便进行分析寻找规律。
+多变量大样本无疑会为研究和应用提供了丰富的信息，但也在一定程度上增加了数据采集的工作量，更重要的是在多数情况下，许多变量之间可能存在相关性，从而增加了问题分析的复杂性，同时对分析带来不便。如果分别对每个指标进行分析，分析往往是孤立的，而不是综合的。盲目减少指标会损失很多信息，容易产生错误的结论。
+
+降维是对数据高维度特征的一种预处理方法。降维是将高维度的数据保留下最重要的一些特征，去除噪声和不重要的特征，从而实现提升数据处理速度的目的。在实际的生产和应用中，降维在一定的信息损失范围内，可以为我们节省大量的时间和成本。降维也成为了应用非常广泛的数据预处理方法。
+
+PCA(principal Component Analysis)，即主成分分析方法，是一种使用最广泛的数据压缩算法。在PCA中，数据从原来的坐标系转换到新的坐标系，由数据本身决定。转换坐标系时，以方差最大的方向作为坐标轴方向，因为数据的最大方差给出了数据的最重要的信息。第一个新坐标轴选择的是原始数据中方差最大的方法，第二个新坐标轴选择的是与第一个新坐标轴正交且方差次大的方向。重复该过程，重复次数为原始数据的特征维数。
+
+　　通过这种方式获得的新的坐标系，我们发现，大部分方差都包含在前面几个坐标轴中，后面的坐标轴所含的方差几乎为0,。于是，我们可以忽略余下的坐标轴，只保留前面的几个含有绝不部分方差的坐标轴。事实上，这样也就相当于只保留包含绝大部分方差的维度特征，而忽略包含方差几乎为0的特征维度，也就实现了对数据特征的降维处理。
+
+　　那么，我们如何得到这些包含最大差异性的主成分方向呢？事实上，通过计算数据矩阵的协方差矩阵，然后得到协方差矩阵的特征值及特征向量，选择特征值最大（也即包含方差最大）的N个特征所对应的特征向量组成的矩阵，我们就可以将数据矩阵转换到新的空间当中，实现数据特征的降维（N维）。
+
+说到这里，可能会疑惑，为什么要计算数据矩阵的协方差矩阵呢？
+回顾一下，协方差的意义：计算数据各维度之间的相关性、度量两个随机变量关系的统计量、度量各个维度偏离其均值的程度。
+而协方差矩阵则是，其每一个因子都可以视为两个不同随机变量的关系，也就是好多协方差凑在一起形成了协方差矩阵，用来衡量各个变量之间的紧密程度。
+计算协方差的公式：
+
+PCA算法的实质就是在能尽可能好的代表原特征的情况下，将原特征进行线性变换、映射至低纬度空间中。
+我们从以上的理论中可以归纳出PCA算法的工作流程：
+计算协方差矩阵
+计算协方差矩阵的特征值和特征向量
+将特征值排序
+保留前N个最大的特征值对应的特征向量
+将数据转换到上面得到的N个特征向量构建的新空间中
+
+说到这里，我们来用代码实现一下，这里我们需要用到python强大的Numpy库，用来直接求解矩阵的特征向量和特征值。奇妙！
+
+先来看一下源数据集的数据分布情况：
+
+我们现在要对这个二维数据集降维。
+在当前工作目录下，新建文件pca.py，添加如下代码：
+from numpy import *
+import matplotlib.pyplot as plt
+"""
+函数说明：加载数据集
+parameters:
+    fileName -文件名
+    delim -分隔符
+return:
+    mat(datArr) -数据矩阵
+"""
+def loadDataSet(fileName, delim = '\t'):
+    fr = open(fileName)
+    stringArr = [line.strip().split(delim) for line in fr.readlines()]      #对读入数据以\t分隔存储到列表中
+    datArr = [list(map(float,line)) for line in stringArr]   #使用两个list来构建矩阵
+    return mat(datArr)
+
+"""
+函数说明：PCA算法实现
+parameters:
+    dataMat -用于进行PCA操作的数据集
+    topNfeat -应用的N个特征
+return:
+    lowDataMat -将维后的数据集
+    reconMat -重构的数据集（用于调试）
+"""
+def pca(dataMat, topNfeat = 9999999):
+    meanVals = mean(dataMat, axis = 0)  #计算数据平均值
+    meanRemoved = dataMat - meanVals    #去平均值
+    covMat = cov(meanRemoved, rowvar = 0 ) #计算协方差
+    eigVals, eigVects = linalg.eig(mat(covMat)) #计算协方差矩阵的特征值和特征向量
+    eigValInd = argsort(eigVals) #对特征值从小到大排序，并提取对应的index
+    eigValInd = eigValInd[:-(topNfeat+1):-1]    #对特征排序结果逆序
+    redEigVects = eigVects[:,eigValInd]     #根据特征值排序结果得到topNfeat个最大的特征向量
+    lowDataMat = meanRemoved * redEigVects  #数据降维
+    reconMat = (lowDataMat * redEigVects.T) + meanVals      #数据重构
+    return lowDataMat, reconMat
+
+"""
+函数说明：绘制数据集
+parameters:
+    dataMat -原始数据集
+    reconMat -重构数据集
+return:
+    None
+"""
+def drawDataSet(dataMat, reconMat):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.scatter(dataMat[:,0].flatten().A[0], dataMat[:,1].flatten().A[0], marker='^',s=90)
+    ax.scatter(reconMat[:,0].flatten().A[0], dataMat[:,1].flatten().A[0], marker='o',s=50,c='red')
+    plt.show()
+
+if __name__ =='__main__':
+    dataMat = loadDataSet('testSet.txt')
+    lowDMat, reconMat = pca(dataMat,1)
+    print("降维后的矩阵形状：\n",shape(lowDMat))
+    drawDataSet(dataMat, reconMat)
+
+运行后，我们可以看到红色的数据即为我们降维后的数据，且降维后的矩阵为一维矩阵。
+
+
+"""
+函数说明：替换Nan为平均值
+parameters:
+    None
+return:
+    datMat -补充缺失值后的数据矩阵  
+"""
+def replaceNanWithMean():
+    datMat = loadDataSet('secom.data',' ')
+    numFeat = shape(datMat)[1]
+    for i in range(numFeat):
+        meanVal = mean(datMat[nonzero(~isnan(datMat[:,i].A))[0],i])     #计算每个特征项的均值
+        datMat[nonzero(isnan(datMat[:,i].A))[0],i] = meanVal    #将空值替换为均值
+    return datMat
+
+if __name__ =='__main__':
+    dataMat = replaceNanWithMean()
+    lowDMat, reconMat = pca(dataMat,15)
+    print("降维后的矩阵形状：\n",shape(lowDMat))
+    drawDataSet(dataMat, reconMat)

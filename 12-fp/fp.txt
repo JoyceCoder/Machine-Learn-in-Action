@@ -1,0 +1,362 @@
+【原理】
+我们都用过搜索引擎，会发现这样一个功能：输入一个单词或者单词的一部分，搜索引擎会自动补全查询词项。
+用户甚至都不知道搜索引擎推荐的东西是否存在，反而会去查找推荐词项。
+比如在百度输入“怎么才能”开始查询时，会出现诸如“怎么才能减肥”之类的推荐结果。
+为了给出这些推荐查询词，搜索引擎公司的研究人员通过查看互联网上的用词来找出经常在一块出现的词对，这需要一种高效发现频繁集的方法。
+
+在前面我们讲过使用Apriori算法来发现数据集中的频繁项集。
+对于不同元素项间的组合，我们使用Apriori原理减少在数据库上进行检查的集合的数目，从而避免了大量的计算。
+但每次增加频繁项集的大小，由于Apriori算法对于每个潜在的频繁项集都会扫描数据集判定给定模式是否频繁，会多次扫描整个数据集。
+当数据集很大时，这会显著降低频繁项集发现的速度。
+
+1.FP-Growth算法
+
+FP-Growth(Frequent-Pattern)算法基于Apriori构建，但在完成相同任务时采用了一些不同的技术。
+不同于Apriori算法的”产生－测试”，这里的任务是将数据集存储在一个特定的称做FP树的结构之后发现频繁项集或者频繁项对，即常在一块出现的元素项的集合FP树。
+常见的频繁项集挖掘算法有两类，一类是Apriori算法，另一类是FP-Growth。
+Apriori通过不断的构造候选集、筛选候选集挖掘出频繁项集，需要多次扫描原始数据，当原始数据较大时，磁盘I/O次数太多，效率比较低下。
+FP-Growth算法则只需扫描原始数据两遍，通过FP-tree数据结构对原始数据进行压缩，效率较高。因此FP-Growth算法的执行速度要比Apriori算法快得多。
+
+FP-Growth算法主要分为两个步骤：
+- 构建FP树
+- 从FP树中挖掘频繁项集
+
+2.FP树
+我们已经知道，FP-Growth算法将数据存储在一种称为FP树的数据结构中。那么，FP树长什么样呢？
+FP(Frequent Pattern,频繁模式)树看上去和其他的树结构类似，但它通过链接(link)来连接相似元素，被连起来的元素项可以看作一个链表。
+如下图中，虚线所示，每个被虚线相连的元素即为相似元素。通过这种相似元素的相连(node link)，我们可以快速的发现相似项的位置。
+
+我们需要注意的是，与搜索树不同的是，一个元素项可以在一棵FP树中重复出现。FP树会存储项集的出现频率，每个项集以路径的方式存储在树中。
+由于不同的集合可能会有若干个相同的项，因此它们的路径可能部分重叠，即存在相似元素的集合会共享树的一部分。只有当集合之间完全不同时，树才会分叉。
+树节点上给出集合中的单个元素及其在序列中的出现次数，路径则会给出该序列的出现次数。
+
+理论看起来可能有些迷糊。我们通过一个例子来具体了解下，下表中为上图所示FP树的数据。
+
+其中，元素项z出现了5次，集合{r,z}出现了1次。路径的出现次数有路径的末端节点次数决定。
+此时我们可以看出，元素项z除了在集合{r,z}中出现了一次，一定是与其他符合或者自身出现了4次。集合{t,s,y,x,z}出现了2次，集合{t,r,y,x,z}出现了1次，也就是说z一定是单独出现了1次。
+将我们的结论与表中数据比较，发现少了q和p元素项，那么在构建FP树的时候，它们去哪了呢？
+
+还记得我们在Apriori算法中提到的支持度定义，即最小阈值，低于最小阈值的元素项被认为是不频繁的。
+这里同样需要对数据项进行过滤，如果项集的出现次数小于我们设定的阈值，则丢掉。因此，q和p被del了。
+
+接下来，我们学习如何构建FP树以及从FP树中挖掘频繁项集。
+【实验】
+根据上节对FP树结构的了解，本节对FP-Growth算法进一步的学习与实战。
+构建FP树是FP-Growth算法的第一步。
+我们已经知道，FP树的节点会存储节点的值以及出现次数，并需要记录相似节点的位置。
+需要为其定义一个类来封装这么多的内容。
+在当前目录下，新建文件，添加如下代码：
+"""
+类说明：FP树数据结构
+function：
+    __init__ -初始化节点
+        nameValue -节点值
+        numOccur -节点出现次数
+        parentNode -父节点
+    inc -对count变量增加给定值
+    disp -将树以文本形式显示
+"""
+class treeNode:
+    def __init__(self, nameValue, numOccur, parentNode):
+        self.name = nameValue   #存放节点名字
+        self.count = numOccur   #节点计数值
+        self.nodeLink = None    #链接相似的元素值
+        self.parent = parentNode    #当前节点的父节点
+        self.children = {}  #空字典变量，存放节点的子节点
+    
+    def inc(self, numOccur):
+        self.count += numOccur
+    
+    def disp(self, ind=1): #ind为节点的深度
+        print(' '*ind, self.name, ' ', self.count)
+        for child in self.children.values():
+            child.disp(ind+1)   #递归遍历树的每个节点
+
+
+并添加main函数：
+if __name__ == '__main__':
+    rootNode = treeNode('pyramid',9,None)
+    rootNode.children['eye'] = treeNode('eye',13,None)
+    rootNode.disp()
+
+运行后，可以看到，我们构建一个有两个结点的树。
+其中，nodelink 和 parent目前还未使用。
+nodelink记录相似节点的位置，parent记录当前节点的父节点，用于寻找频繁项集。类中还包含一个空字典变量children，用来存放节点的子节点。
+
+
+构建好FP树所需的数据结构之后，下面就可以构建FP树了。
+我们除了要构建FP树之外，还需要一个头指针表来指向给定类型的第一个实例。
+下图是头指针表的示意图。利用头指针表，可以快速找到FP树中一个给定类型的所有元素。
+
+我们使用一个字典作为数据结构，来保存头指针表。该结构还可以用来保存FP树中每类元素的总数。
+
+FP-Growth算法会扫描数据集两次。
+第一次扫描数据集，记录每个独立元素项的出现次数，并过滤不满足最小支持度的元素项，剩余的元素项即为频繁项，存储在头指针表中。
+第二次扫描数据集，读入每个项集中的频繁项，并将其添加到一条已经存在的路径中。如果该路径不存在，则创建一条新路径。
+
+这里，我们需要注意一个问题，FP-Growth算法会尽可能的将数据压缩，假设有集合{z,x,y}和{y,z,r},会被添加到两条路径中。但在FP树中，相同的项应该只表示一次。
+如何解决这个问题呢？
+在将集合添加到树之前，需要对每个集合进行排序。排序基于元素项的绝对出现频率来进行。
+我们使用头指针表中存储的元素项的出现次数，对上节中表数据进行排序，得到以下结果：
+
+这样，我们就可以构建FP树了。从空集开始，向其中不断添加频繁项集。过滤、排序后的集合依此加入到树中。
+添加的过程如下图所示。
+
+我们已经大致了解了FP-Growth算法构建FP树的思想，下面我们需要定义相应的功能函数：
+1.createTree -对数据过滤、排序
+2.updateTree -将处理后的集合加入到树中
+3.updateHeader -对新加入的类型节点需要更新头指针表中的实例，并更新该类型节点的nodeLink链表   
+
+打开文件fp.py，在main函数之前加入如下代码：
+"""
+函数说明：FP树构建函数
+parameters:
+    dataSet -字典型数据集
+    minSup -最小支持度
+return：
+    retTree -FP树
+    headerTable -头指针表
+"""
+def createTree(dataSet, minSup = 1):
+    headerTable = {}    #创建空字典，存放头指针
+    print("dataSet:",dataSet)
+    for trans in dataSet: #遍历数据集
+        for item in trans:  #遍历每个元素项
+            headerTable[item] = headerTable.get(item,0)+dataSet[trans]  #以节点为key，节点的次数为值
+    print("headerTable:",headerTable)
+    tmpHeaderTab = headerTable.copy()
+    for k in tmpHeaderTab.keys():    #遍历头指针表
+        if headerTable[k] < minSup:     #如果出现次数小于最小支持度
+            del(headerTable[k])     #删掉该元素项
+    freqItemSet = set(headerTable.keys())   #将字典的键值保存为频繁项集合
+    if len(freqItemSet) == 0: return None, None #如果过滤后的频繁项为空，则直接返回
+    for k in headerTable:
+        headerTable[k] = [headerTable[k], None] #使用nodeLink
+        #print(headerTable)
+    retTree = treeNode('Null Set',1,None) #创建树的根节点
+    for tranSet, count in dataSet.items():    #再次遍历数据集
+        localD = {} #创建空字典
+        for item in tranSet:
+            if item in freqItemSet: #该项是频繁项
+                localD[item] = headerTable[item][0] #存储该项的出现次数，项为键值
+        if len(localD) > 0: 
+            orderedItems = [v[0] for v in sorted(localD.items(),key=lambda p: p[1],reverse = True)] #基于元素项的绝对出现频率进行排序
+            #print(orderedItems)
+            updateTree(orderedItems, retTree, headerTable, count)   #使用orderedItems更新树结构
+    print("AfterheaderTable:",headerTable)
+    return retTree, headerTable
+
+"""
+函数说明：FP树生长函数
+parameters:
+    items -项集
+    inTree -树节点
+    headerTable -头指针表
+    count -项集出现次数
+return：
+    None
+"""
+def updateTree(items, inTree, headerTable, count):
+    if items[0] in inTree.children:     #首先测试items的第一个元素项是否作为子节点存在
+        inTree.children[items[0]].inc(count)  #如果存在，则更新该元素项的计数
+    else:
+        inTree.children[items[0]] = treeNode(items[0],count,inTree) #如果不存在，创建一个新的treeNode并将其作为子节点添加到树中
+        if headerTable[items[0]][1] == None:    #将该项存到头指针表中的nodelink
+            headerTable[items[0]][1] = inTree.children[items[0]]    #记录nodelink
+        else:
+            updateHeader(headerTable[items[0]][1], inTree.children[items[0]]) #若已经存在nodelink，则更新至链表尾
+    if len(items) > 1:
+        updateTree(items[1::],inTree.children[items[0]],headerTable,count)  #迭代，每次调用时会去掉列表中的第一个元素
+    
+"""
+函数说明：确保节点链接指向树中该元素项的每一个实例
+parameters:
+    nodeToTest -需要更新的头指针节点
+    targetNode -要指向的实例
+return：
+    None
+"""
+def updateHeader(nodeToTest, targetNode):
+    while(nodeToTest.nodeLink!=None):   #从头指针表的nodelink开始，直到达到链表末尾
+        nodeToTest = nodeToTest.nodeLink
+    nodeToTest.nodeLink = targetNode    #记录当前元素项的实例
+
+"""
+FP树测试函数
+"""        
+def testFPtree():
+    simpDat = loadSimpDat()
+    initSet = createInitSet(simpDat)
+    print("字典数据集：\n",initSet)
+    myFPtree, _ = createTree(initSet,3)
+    myFPtree.disp()
+
+并添加初始的数据集，并将数据转换成字典类型：
+
+def loadSimpDat():
+    simpDat = [['r', 'z', 'h', 'j', 'p'],
+               ['z', 'y', 'x', 'w', 'v', 'u', 't', 's'],
+               ['z'],
+               ['r', 'x', 'n', 'o', 's'],
+               ['y', 'r', 'x', 'z', 'q', 't', 'p'],
+               ['y', 'z', 'x', 'e', 'q', 's', 't', 'm']]
+    return simpDat
+
+"""
+函数说明：从列表到字典的类型转换函数
+parameters：
+    dataSet -数据集列表
+return：
+    retDict -数据集字典
+"""
+def createInitSet(dataSet):
+    retDict = {}
+    for trans in dataSet:
+        retDict[frozenset(trans)] = 1   #将列表项转换为forzenset类型并作为字典的键值，值为该项的出现次数
+    return retDict
+
+修改main函数为：
+if __name__ == '__main__':
+    testFPtree()
+
+运行文件后，可以看到我们构建的FP树的结构，我们可以验证一下与上图中所示的树是否等价。
+
+【实验】
+上一节实现了构建FP树的代码。有了FP树，我们就可以抽取频繁集了。
+与Apriori算法类似，首先从单元素项集合开始，然后在此基础上逐步构建更大的集合。
+与Apriori算法不同的是，这里使用FP树实现上述过程，而不是每次需要遍历原始数据集来验证数据的支持度。
+
+从FP树中抽取频繁项集主要分为三个步骤：
+(1)从FP树中获得条件模式基
+(2)利用条件模式基，为每一个条件模式基创建相对应的条件FP树
+(3)迭代重复上述两个步骤，直到树中只包含空集元素项为止。
+
+1.抽取条件模式基
+条件模式基(conditional pattern base,CPB)是以所查找元素项为结尾的路径集合。每一条路径其实都是所查找元素项的前缀路径(prefix path)。
+前缀路径是介于所查找元素项与数根节点之间的所有内容。
+
+下表列出了上节中每一个频繁项的所有前缀路径以及路径频繁度。
+每条路径都与一个计数值关联，该计数值等于起始元素项的计数值，该计数值给了每条路径上起始元素项的数据。
+
+抽取条件基的步骤大致如下：
+
+从头指针表(header table)的最下面的元素项开始，构造每个元素项的条件模式基
+顺着头指针表中元素项的链表，找出所有包含该元素项的前缀路径，这些前缀路径就是该元素项的条件模式基
+所有这些条件模式基的计数值为该路径上元素项的计数值，也称作频繁度
+
+如下图中，是对头指针表HeaderTable创建的FP树，并为每个频繁项构建条件模式基。
+包含p的其中一条路径是fcamp，该路径中p的频繁度为2，则该条件模式基fcam的频繁度为2。
+
+接下来，需要定义相应的功能函数。
+该函数应该能完成对头指针表中包含的指向相同类型元素链表的指针进行访问，遍历该链表，对链表上的每个项，向上回溯这棵树直到根节点为止。
+
+打开我们的文件fp.py，添加如下代码：
+这里我们创建了两个函数，由于对元素项的回溯是一个重复操作，单独作为一个函数会更好。
+在对相同类型元素链表进行遍历时，用到了nodelink变量；在回溯时，用到了parent变量。从代码中来体会这两个变量的作用。
+"""
+函数说明：上溯FP树
+parameters：
+    leafNode -节点
+    prefixPath -该节点的前缀路径
+return:
+    None
+"""
+def ascendTree(leafNode, prefixPath):
+    if leafNode.parent != None: #如果该节点的父节点存在
+        prefixPath.append(leafNode.name)    #将其加入到前缀路径中
+        ascendTree(leafNode.parent,prefixPath)  #迭代调用自身上溯
+
+"""
+函数说明：遍历某个元素项的nodelink链表
+parameters：
+    basePat -头指针表中元素
+    treeNode -该元素项的nodelist链表节点
+return:
+    condPats -该元素项的条件模式基
+"""
+def findPrefixPath(basePat, treeNode):
+    condPats = {} #创建空字典，存放条件模式基
+    while treeNode != None:
+        prefixPath = []
+        ascendTree(treeNode, prefixPath)    #寻找该路径下实例的前缀路径
+        if len(prefixPath)>1:   #如果有前缀路径
+            condPats[frozenset(prefixPath[1:])] = treeNode.count #记录该路径的出现次数，出现次数为该路径下起始元素项的计数值
+            #此处需说明
+        treeNode = treeNode.nodeLink
+    return condPats
+
+def testPrefix(myHeaderTab):
+    print(findPrefixPath('x',myHeaderTab['x'][1]))
+    print(findPrefixPath('z',myHeaderTab['z'][1]))
+    print(findPrefixPath('r',myHeaderTab['r'][1]))
+修改我们的main函数：
+if __name__ == '__main__':
+    myHeaderTab = testFPtree()    
+    testPrefix(myHeaderTab)
+
+运行后，可以看到元素项'x','z','r'的条件模式基，可以与表中结果对照。
+有了条件模式基之后，我们就可以创建条件FP树。
+
+2.创建条件FP树
+对于每一个频繁项，都要为其创建一棵条件FP树。
+创建条件FP树的步骤如下：
+使用上一步得到的条件模式基作为输入数据，来为每一个条件模式基构造条件FP树。然后，我们会递归的发现频繁项，发现条件模式基，以及发现另外的条件树。
+下图元素项t的条件FP树的构建过程：
+
+同创建FP树一样，条件FP树同样会将条件模式基中不符合支持度的元素项过滤。
+如图中，{s},{r}在t的条件树中分别出现了2次和1次，不符合最小支持度为3，也就是非频繁的。
+
+对t创建好FP树后，接下来对{t,z},{t,y},{t,x}挖掘对应的条件树。该过程重复进行，直到条件树中没有元素为止。
+
+打开我们的文件fp.py，添加如下代码：
+这里我们寻找频繁项集之前，先对头指针表中的项按照其出现频率进行从小到大的排序。这是因为由于更频繁的元素项放在树的上层会被更多的共享，否则会造成频繁出现的元素项出现在树的分支中，无法共用前缀。
+如下图：
+{f,a,c,m,p}和{a,f,c,p,m}在FP树中应被看作是同一路径，但由于没有对头指针表进行排序操作，无法共用前缀。造成多余的分叉。
+
+"""
+函数说明：在FP树中寻找频繁项
+parameters:
+    inTree -FP树
+    headerTable -当前元素前缀路径的头指针表
+    minSup -最小支持度
+    preFix -当前元素的前缀路径
+    freqItemList -频繁项集
+return:
+    None
+"""
+def mineTree(inTree, headerTable, minSup, preFix, freqItemList):
+    #print("mineTreeHander:",headerTable)
+    bigL = [v[0] for v in sorted(headerTable.items(), key=lambda p: p[1][0])] #按照出现次数从小到大排序
+    #print("bigL:",bigL)
+    for basePat in bigL:  #从最少次数的元素开始
+        newFreqSet = preFix.copy()  #复制前缀路径
+        newFreqSet.add(basePat)     #将当前元素加入路径
+        #print ('finalFrequent Item: ',newFreqSet)    #append to set
+        freqItemList.append(newFreqSet)     #将该项集加入频繁项集
+        condPattBases = findPrefixPath(basePat, headerTable[basePat][1])    #找到当前元素的条件模式基
+        #print ('condPattBases :',basePat, condPattBases)
+        myCondTree, myHead = createTree(condPattBases, minSup)  #过滤低于阈值的item，基于条件模式基建立FP树
+        #print ('head from conditional tree: ', myHead)
+        if myHead != None: #如果FP树中存在元素项
+            #print ('conditional tree for: ',newFreqSet)
+            #myCondTree.disp(1)    
+            # 递归的挖掘每个条件FP树，累加后缀频繁项集        
+            mineTree(myCondTree, myHead, minSup, newFreqSet, freqItemList)  #递归调用自身函数，直至FP树中没有元素
+
+"""
+找到频繁集测试函数
+"""
+def testAll():
+    simpDat = loadSimpDat()
+    initSet = createInitSet(simpDat)
+    myTree, headerTab = createTree(initSet,3)
+    freqItems = []
+    mineTree(myTree,headerTab,3,set([]),freqItems)
+    print("频繁项集为：\n",freqItems)
+
+修改main函数为：
+if __name__ == '__main__':
+    testAll()   
+
+运行后可以看到，返回的项集即为我们要寻找的频繁项集，可以检查一下返回的项集是否与上节创建的条件树匹配。
+到此，完整的FP-Growth算法已经可以运行。

@@ -1,0 +1,67 @@
+本节我们使用python强大的机器学习库sklearn来实现PCA算法。
+在scikit-learn中，与PCA相关的类都在sklearn.decomposition包中。最常用的PCA类就是sklearn.decomposition.PCA，我们下面主要也会讲解基于这个类的使用的方法。
+
+　　　　除了PCA类以外，最常用的PCA相关类还有KernelPCA类，在原理篇我们也讲到了，它主要用于非线性数据的降维，需要用到核技巧。因此在使用的时候需要选择合适的核函数并对核函数的参数进行调参。
+
+　　　　另外一个常用的PCA相关类是IncrementalPCA类，它主要是为了解决单机内存限制的。有时候我们的样本量可能是上百万+，维度可能也是上千，直接去拟合数据可能会让内存爆掉， 此时我们可以用IncrementalPCA类来解决这个问题。IncrementalPCA先将数据分成多个batch，然后对每个batch依次递增调用partial_fit函数，这样一步步的得到最终的样本最优降维。
+
+　　　　此外还有SparsePCA和MiniBatchSparsePCA。他们和上面讲到的PCA类的区别主要是使用了L1的正则化，这样可以将很多非主要成分的影响度降为0，这样在PCA降维的时候我们仅仅需要对那些相对比较主要的成分进行PCA降维，避免了一些噪声之类的因素对我们PCA降维的影响。SparsePCA和MiniBatchSparsePCA之间的区别则是MiniBatchSparsePCA通过使用一部分样本特征和给定的迭代次数来进行PCA降维，以解决在大样本时特征分解过慢的问题，当然，代价就是PCA降维的精确度可能会降低。使用SparsePCA和MiniBatchSparsePCA需要对L1正则化参数进行调参。
+
+下面我们主要基于sklearn.decomposition.PCA来讲解如何使用scikit-learn进行PCA降维。PCA类基本不需要调参，一般来说，我们只需要指定我们需要降维到的维度，或者我们希望降维后的主成分的方差和占原始维度所有特征方差和的比例阈值就可以了。
+
+参数：
+    1）n_components：这个参数可以帮我们指定希望PCA降维后的特征维度数目。
+    2）whiten ：判断是否进行白化。所谓白化，就是对降维后的数据的每个特征进行归一化，让方差都为1。对于PCA降维本身来说，一般不需要白化。如果你PCA降维后有后续的数据处理动作，可以考虑白化。默认值是False，即不进行白化。
+    3）svd_solver：即指定奇异值分解SVD的方法，由于特征分解是奇异值分解SVD的一个特例，一般的PCA库都是基于SVD实现的。可以选择的值：{‘auto’, ‘full’, ‘arpack’, ‘randomized’}。默认是auto，即PCA类会自己去权衡，选择一个合适的SVD算法来降维。
+返回值：
+    explained_variance_，它代表降维后的各主成分的方差值。方差值越大，则说明越是重要的主成分。
+    explained_variance_ratio_，它代表降维后的各主成分的方差值占总方差值的比例，这个比例越大，则越是重要的主成分。
+
+函数：
+    fit(X) -用数据X训练模型
+    transform(X) -数据降维操作。X被投射到提取的第一主成分上
+
+了解了这么多，下面我们使用sklearn实现对iris数据应用PCA算法的降维。
+
+Iris数据集是常用的分类实验数据集。Iris也称鸢尾花卉数据集，是一类多重变量分析的数据集。数据集包含150个数据集，分为3类，每类50个数据，每个数据包含4个属性。可通过花萼长度，花萼宽度，花瓣长度，花瓣宽度4个属性预测鸢尾花卉属于（Setosa，Versicolour，Virginica）三个种类中的哪一类。
+具体的数据如下：
+
+在当前的工作目录下，新建sklearnPCA.py文件，添加如下代码：
+
+form numpy import *
+import matplotlib.pyplot as plt
+form sklearn import datasets
+from sklearn.decomposition import PCA
+
+iris = datasets.load_iris()
+
+#加载数据集和分类结果
+X = iris.data
+y = iris.target
+targetNames = iris.target_names
+
+#构建pca模型
+pca = PCA(n_components=4)
+X_r = pca.fit(X).transform(X)
+
+print("各特征的方差占总方差的比例：\n",str(pca.explained_variance_ratio_))
+
+#绘制结果图
+plt.figure()
+colors = ['navy', 'turquoise', 'darkorange']
+lw = 2  #linewidth
+
+for color, i, targetName in zip(colors,[0,1,2],targetNames):
+    plt.scatter(X_r[y==i,0],X_r[y==i,1],color=color,alpha=.8,lw=lw,label=targetName)
+    x = linspace(-3,4,50)   #取自变量X
+    plt.plot(x,X_r[y==i,0],color=color,alpha=.8)
+plt.legend(loc='best',shadow=False,scatterpoints=1)
+plt.title('PCA_IRIS_DATA')
+
+plt.show()
+
+运行后我们可以看到，对三种不同花卉的数据集进行降维后的数据分布情况。
+由方差比例可以看出，第一个特征占了总方差比例的92.4%。
+
+同学们可以试着将pca模型的n_components参数修改为1，注释散点图函数，并对直线方程去掉#。
+运行后，可以看到如下结果，此时我们只保留的第一主成分。
